@@ -36,9 +36,11 @@ class JobDetails {
   }
 
   static async findById(id) {
+  try {
     const [rows] = await db.execute(
       `SELECT jd.*, i.employee_id, i.employee_name, i.status as employee_status,
-              d.name as department_name
+              d.name as department_name,
+              IFNULL(jd.skills, '[]') as skills
        FROM job_details jd 
        LEFT JOIN individual_data i ON jd.individual_data_id = i.id
        LEFT JOIN departments d ON i.department_id = d.id
@@ -46,16 +48,33 @@ class JobDetails {
       [id]
     );
     
-    if (rows[0] && rows[0].skills) {
+    if (!rows.length) {
+      return null;
+    }
+
+    const result = rows[0];
+    
+    // Handle skills parsing consistently with findByEmployeeId
+    if (result.skills) {
       try {
-        rows[0].skills = JSON.parse(rows[0].skills);
+        // Trim whitespace and parse
+        const skillsStr = result.skills.toString().trim();
+        result.skills = skillsStr ? JSON.parse(skillsStr) : [];
+        result.skills = result.skills.join(', ');
       } catch (e) {
-        rows[0].skills = null;
+        console.error('Error parsing skills JSON:', e);
+        result.skills = "";
       }
+    } else {
+      result.skills = "";
     }
     
-    return rows[0];
+    return result;
+  } catch (error) {
+    console.error('Error in findById:', error);
+    throw error;
   }
+}
 
 static async findByIndividualDataId(individual_data_id) {
   try {
@@ -141,10 +160,12 @@ static async findByIndividualDataId(individual_data_id) {
   }
 }
 
-  static async findAll() {
+static async findAll() {
+  try {
     const [rows] = await db.execute(
       `SELECT jd.*, i.employee_id, i.employee_name, i.status as employee_status,
-              d.name as department_name
+              d.name as department_name,
+              IFNULL(jd.skills, '[]') as skills
        FROM job_details jd 
        LEFT JOIN individual_data i ON jd.individual_data_id = i.id
        LEFT JOIN departments d ON i.department_id = d.id
@@ -152,16 +173,27 @@ static async findByIndividualDataId(individual_data_id) {
     );
     
     return rows.map(row => {
+      // Handle skills parsing consistently
       if (row.skills) {
         try {
-          row.skills = JSON.parse(row.skills);
+          // Trim whitespace and parse
+          const skillsStr = row.skills.toString().trim();
+          row.skills = skillsStr ? JSON.parse(skillsStr) : [];
+          row.skills = row.skills.join(', ');
         } catch (e) {
-          row.skills = null;
+          console.error('Error parsing skills JSON for employee', row.employee_id, e);
+          row.skills = "";
         }
+      } else {
+        row.skills = "";
       }
       return row;
     });
+  } catch (error) {
+    console.error('Error in findAll:', error);
+    throw error;
   }
+}
 
   static async findByJobProfile(job_profile) {
     const [rows] = await db.execute(
