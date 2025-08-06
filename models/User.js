@@ -17,15 +17,16 @@ class User {
   }
 
   static async findByEmployeeId(employee_id) {
-    const [rows] = await db.execute(
-      `SELECT u.*, r.name, r.permissions
-       FROM users u 
-       JOIN roles r ON u.role_id = r.id 
-       WHERE u.employee_id = ? AND u.is_active = true`,
-      [employee_id]
-    );
-    return rows[0];
-  }
+  const [rows] = await db.execute(
+    `SELECT u.*, r.name, r.permissions, i.employee_name
+     FROM users u 
+     JOIN roles r ON u.role_id = r.id 
+     JOIN individual_data i ON u.individual_data_id = i.id
+     WHERE u.employee_id = ? AND u.is_active = true`,
+    [employee_id]
+  );
+  return rows[0];
+}
 
   static async findByEmail(email) {
     const [rows] = await db.execute(

@@ -105,7 +105,7 @@ class IndividualData {
     const values = [];
     
     const allowedFields = [
-      'employee_type', 'time_type', 'default_weekly_hours', 
+      'employee_type', 'employee_name', 'time_type', 'default_weekly_hours', 
       'scheduled_weekly_hours', 'joining_date', 'hire_date',
       'job_profile_progression_model_designation', 'department_id', 
       'manager_id', 'status'

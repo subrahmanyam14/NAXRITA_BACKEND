@@ -57,10 +57,12 @@ class JobDetails {
     return rows[0];
   }
 
-  static async findByIndividualDataId(individual_data_id) {
+static async findByIndividualDataId(individual_data_id) {
+  try {
     const [rows] = await db.execute(
       `SELECT jd.*, i.employee_id, i.employee_name, i.status as employee_status,
-              d.name as department_name
+              d.name as department_name,
+              IFNULL(jd.skills, '[]') as skills
        FROM job_details jd 
        LEFT JOIN individual_data i ON jd.individual_data_id = i.id
        LEFT JOIN departments d ON i.department_id = d.id
@@ -68,21 +70,42 @@ class JobDetails {
       [individual_data_id]
     );
     
-    if (rows[0] && rows[0].skills) {
+    if (!rows.length) {
+      return null;
+    }
+
+    const result = rows[0];
+    
+    // Handle skills parsing
+    if (result.skills) {
       try {
-        rows[0].skills = JSON.parse(rows[0].skills);
+        // Trim whitespace and parse
+        const skillsStr = result.skills.toString().trim();
+        const skillsArray = skillsStr ? JSON.parse(skillsStr) : [];
+        
+        // Convert array to comma-separated string if needed
+        result.skills = Array.isArray(skillsArray) ? skillsArray.join(', ') : skillsArray;
       } catch (e) {
-        rows[0].skills = null;
+        console.error('Error parsing skills JSON:', e);
+        result.skills = "";
       }
+    } else {
+      result.skills = "";
     }
     
-    return rows[0];
+    return result;
+  } catch (error) {
+    console.error('Error in findByIndividualDataId:', error);
+    throw error;
   }
+}
 
-  static async findByEmployeeId(employee_id) {
+ static async findByEmployeeId(employee_id) {
+  try {
     const [rows] = await db.execute(
       `SELECT jd.*, i.employee_id, i.employee_name, i.status as employee_status,
-              d.name as department_name
+              d.name as department_name,
+              IFNULL(jd.skills, '[]') as skills
        FROM job_details jd 
        INNER JOIN individual_data i ON jd.individual_data_id = i.id
        LEFT JOIN departments d ON i.department_id = d.id
@@ -90,16 +113,33 @@ class JobDetails {
       [employee_id]
     );
     
-    if (rows[0] && rows[0].skills) {
+    if (!rows.length) {
+      return null;
+    }
+
+    const result = rows[0];
+    
+    // Handle skills parsing
+    if (result.skills) {
       try {
-        rows[0].skills = JSON.parse(rows[0].skills);
+        // Trim whitespace and parse
+        const skillsStr = result.skills.toString().trim();
+        result.skills = skillsStr ? JSON.parse(skillsStr) : [];
+        result.skills = result.skills.join(', ');
       } catch (e) {
-        rows[0].skills = null;
+        console.error('Error parsing skills JSON:', e);
+        result.skills = "";
       }
+    } else {
+      result.skills = "";
     }
     
-    return rows[0];
+    return result;
+  } catch (error) {
+    console.error('Error in findByEmployeeId:', error);
+    throw error;
   }
+}
 
   static async findAll() {
     const [rows] = await db.execute(

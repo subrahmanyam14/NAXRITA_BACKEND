@@ -51,9 +51,7 @@ class Role {
       // Use parameterized queries instead of db.escape
       const [rows] = await db.execute(
         `SELECT * FROM roles 
-         ORDER BY created_at DESC 
-         LIMIT ? OFFSET ?`,
-        [limitNum, offsetNum]
+         ORDER BY created_at DESC `
       );
       return rows;
     } catch (error) {

@@ -49,6 +49,7 @@ const createEmployee = async (req, res) => {
 
     // Create user account
     const password = `${value.employee_id}@${value.joining_date}`;
+    console.log("Pasword: ", password);
     const userId = await User.create({
       employee_id: value.employee_id,
       email: value.email,
@@ -213,6 +214,21 @@ const updateEmployee = async (req, res) => {
       const manager = await IndividualData.findByEmployeeId(updateData.manager_id);
       if (!manager) {
         return res.status(400).json({ message: 'Manager not found' });
+      }
+    }
+
+    // Process date fields to remove time portion if present
+    const dateFields = ['joining_date', 'hire_date']; // Add any other date fields here
+    for (const field of dateFields) {
+      if (updateData[field]) {
+        // If the date comes as ISO string (e.g., '2023-01-01T00:00:00.000Z')
+        if (typeof updateData[field] === 'string' && updateData[field].includes('T')) {
+          updateData[field] = updateData[field].split('T')[0];
+        }
+        // If it's a Date object
+        else if (updateData[field] instanceof Date) {
+          updateData[field] = updateData[field].toISOString().split('T')[0];
+        }
       }
     }
 

@@ -31,7 +31,7 @@ router.get('/stats', auth, authorize(['admin', 'hr', 'manager']), getEmployeeSta
 
 router.get('/validate/:employeeId', auth, authorize(['admin', 'hr']), validateEmployeeId);
 
-router.get('/', auth, authorize(['admin', 'hr', 'manager']), getAllEmployees);
+router.get('/', auth, getAllEmployees);
 
 router.get('/employee/:id', auth, getEmployeeById);
 

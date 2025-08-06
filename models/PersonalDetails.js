@@ -30,7 +30,7 @@ class PersonalDetails {
           profile_pic, email, emergency_contact_name, emergency_contact_phone
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          individual_data_id, gender, date_of_birth, country_birth, marital_status,
+          parseInt(individual_data_id), gender, date_of_birth, country_birth, marital_status,
           citizenship_status, nationality, pan_id, adhaar, address, mobile,
           profile_pic, email, emergency_contact_name, emergency_contact_phone
         ]

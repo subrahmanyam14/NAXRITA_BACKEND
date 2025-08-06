@@ -1,6 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const PersonalDetails = require('../models/PersonalDetails');
+require('dotenv').config();
+
+const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 
 
 // CREATE - Create new personal details
@@ -36,7 +39,7 @@ const createPersonalDetails = async (req, res) => {
       ...req.body,
       profile_pic: uploadedFile // Include file information in the data
     };
-   
+    // console.log(personalData);
     const result = await PersonalDetails.create(personalData);
     res.status(201).json(result);
   } catch (error) {
@@ -69,7 +72,9 @@ const getPersonalDetailsByIndividualId = async (req, res) => {
     if (!result.success) {
       return res.status(404).json(result);
     }
-
+    // console.log(`${BASE_URL}/${result.data.profile_pic}`)
+    result.data.profile_pic = `${BASE_URL}/${result.data.profile_pic}`;
+    
     res.status(200).json(result);
 
   } catch (error) {
@@ -98,7 +103,8 @@ const getDetailedPersonalDetails = async (req, res) => {
     if (!result.success) {
       return res.status(404).json(result);
     }
-
+    result.profile_pic = `${BASE_URL}/${result.profile_pic}`;
+    
     res.status(200).json(result);
 
   } catch (error) {
@@ -127,7 +133,8 @@ const getPersonalDetailsById = async (req, res) => {
     if (!result.success) {
       return res.status(404).json(result);
     }
-
+    result.profile_pic = `${BASE_URL}/${result.profile_pic}`;
+    
     res.status(200).json(result);
 
   } catch (error) {
