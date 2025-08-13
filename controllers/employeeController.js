@@ -2,7 +2,7 @@
 const IndividualData = require("../models/IndividualData");
 const User = require("../models/User");
 const { employeeRegisterationSchema } = require("../utils/validators");
-
+const db = require('../config/database');
 const createEmployee = async (req, res) => {
   try {
     const { error, value } = employeeRegisterationSchema.validate(req.body);
@@ -121,34 +121,55 @@ const getEmployeeByEmployeeId = async (req, res) => {
 
 const getAllEmployees = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status } = req.query;
+    // Validate and parse input parameters
+    let { page = 1, limit = 10, status } = req.query;
     
-    let employees = await IndividualData.findAll();
+    // Convert to integers with fallbacks
+    page = parseInt(page, 10) || 1;
+    limit = parseInt(limit, 10) || 10;
     
-    // Filter by status if provided
+    // Enforce maximum limit
+    limit = Math.min(limit, 100);
+    
+    // Ensure positive values
+    page = Math.max(1, page);
+    limit = Math.max(1, limit);
+
+    // Get total count for pagination metadata
+    let countQuery = 'SELECT COUNT(*) as total FROM individual_data';
+    const countParams = [];
+    
     if (status) {
-      employees = employees.filter(emp => emp.status.toLowerCase() === status.toLowerCase());
+      countQuery += ' WHERE status = ?';
+      countParams.push(status);
     }
     
-    // Implement pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const paginatedEmployees = employees.slice(startIndex, endIndex);
+    const [[{ total }]] = await db.execute(countQuery, countParams);
+    
+    // Get paginated data
+    const employees = await IndividualData.findAll({
+      page,
+      limit,
+      status
+    });
     
     res.status(200).json({
       message: 'Employees retrieved successfully',
-      data: paginatedEmployees,
+      data: employees,
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(employees.length / limit),
-        totalEmployees: employees.length,
-        hasNext: endIndex < employees.length,
-        hasPrev: startIndex > 0
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalEmployees: total,
+        hasNext: (page * limit) < total,
+        hasPrev: page > 1
       }
     });
   } catch (error) {
     console.error('Get all employees error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ 
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

@@ -317,7 +317,7 @@ static async findAll() {
     });
   }
 
-  static async update(id, updateData) {
+static async update(id, updateData) {
     const fields = [];
     const values = [];
     
@@ -327,11 +327,20 @@ static async findAll() {
       'phone', 'email', 'work_address', 'skills'
     ];
     
+    // Convert comma-separated skills string to array if provided
+    if (updateData.skills && typeof updateData.skills === 'string') {
+      updateData.skills = updateData.skills.split(',')
+        .map(skill => skill.trim())
+        .filter(skill => skill.length > 0);
+    }
+    
     for (const [key, value] of Object.entries(updateData)) {
       if (allowedFields.includes(key) && value !== undefined) {
         if (key === 'skills') {
           fields.push(`${key} = ?`);
-          values.push(JSON.stringify(value));
+          // Ensure skills is always stored as JSON array
+          const skillsArray = Array.isArray(value) ? value : [value];
+          values.push(JSON.stringify(skillsArray));
         } else {
           fields.push(`${key} = ?`);
           values.push(value);
@@ -352,7 +361,7 @@ static async findAll() {
     );
     
     return result.affectedRows > 0;
-  }
+}
 
   static async updateByIndividualDataId(individual_data_id, updateData) {
     const fields = [];
@@ -368,7 +377,9 @@ static async findAll() {
       if (allowedFields.includes(key) && value !== undefined) {
         if (key === 'skills') {
           fields.push(`${key} = ?`);
-          values.push(JSON.stringify(value));
+          // Ensure skills is always stored as JSON array
+          const skillsArray = Array.isArray(value) ? value : [value];
+          values.push(JSON.stringify(skillsArray));
         } else {
           fields.push(`${key} = ?`);
           values.push(value);

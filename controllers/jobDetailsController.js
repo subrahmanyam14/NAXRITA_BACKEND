@@ -290,9 +290,16 @@ const updateJobDetails = async (req, res) => {
       return res.status(404).json({ message: 'Job details not found' });
     }
 
-    // Validate update data if validator exists
+    // Convert comma-separated skills string to array if provided
+    if (updateData.skills && typeof updateData.skills === 'string') {
+      updateData.skills = updateData.skills.split(',')
+        .map(skill => skill.trim())
+        .filter(skill => skill.length > 0);
+    }
+
+    // Validate skills is an array after conversion
     if (updateData.skills && !Array.isArray(updateData.skills)) {
-      return res.status(400).json({ message: 'Skills must be an array' });
+      return res.status(400).json({ message: 'Skills must be a comma-separated string or an array' });
     }
 
     const updated = await JobDetails.update(parseInt(id), updateData);
@@ -332,9 +339,14 @@ const updateJobDetailsByIndividualDataId = async (req, res) => {
       return res.status(404).json({ message: 'Job details not found for this employee' });
     }
 
-    // Validate update data
+    // Convert comma-separated skills string to array if provided
+    if (updateData.skills && typeof updateData.skills === 'string') {
+      updateData.skills = updateData.skills.split(',').map(skill => skill.trim());
+    }
+
+    // Validate skills is an array after conversion
     if (updateData.skills && !Array.isArray(updateData.skills)) {
-      return res.status(400).json({ message: 'Skills must be an array' });
+      return res.status(400).json({ message: 'Skills must be a comma-separated string or an array' });
     }
 
     const updated = await JobDetails.updateByIndividualDataId(parseInt(individualDataId), updateData);

@@ -1,5 +1,4 @@
 const XLSX = require('xlsx');
-const db = require('../config/database');
 const bcrypt = require('bcryptjs');
 const Joi = require('joi');
 const IndividualData = require('../models/IndividualData');
@@ -90,16 +89,84 @@ const jobDetailsSchema = Joi.object({
     })
 });
 
+// Utility function to convert Excel date serial number to JavaScript Date
+const excelDateToJSDate = (excelDate) => {
+  if (!excelDate) return null;
+  
+  // If it's already a Date object
+  if (excelDate instanceof Date) return excelDate;
+  
+  // If it's a number (Excel serial date)
+  if (typeof excelDate === 'number' && excelDate > 0) {
+    // Excel date serial number conversion
+    // Excel epoch: January 1, 1900 (but Excel incorrectly treats 1900 as a leap year)
+    const excelEpoch = new Date(1899, 11, 30); // December 30, 1899
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+    return new Date(excelEpoch.getTime() + excelDate * millisecondsPerDay);
+  }
+  
+  // If it's a string in dd-mm-yyyy format
+  if (typeof excelDate === 'string') {
+    // Handle dd-mm-yyyy format
+    const datePattern = /^(\d{1,2})-(\d{1,2})-(\d{4})$/;
+    const match = excelDate.match(datePattern);
+    
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1; // JavaScript months are 0-indexed
+      const year = parseInt(match[3], 10);
+      
+      const jsDate = new Date(year, month, day);
+      
+      // Validate the constructed date
+      if (jsDate.getFullYear() === year && 
+          jsDate.getMonth() === month && 
+          jsDate.getDate() === day) {
+        return jsDate;
+      } else {
+        throw new Error(`Invalid date: ${excelDate}`);
+      }
+    }
+    
+    // Try parsing as a regular date string (fallback)
+    const parsed = new Date(excelDate);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  
+  throw new Error(`Unable to convert date: ${excelDate} (type: ${typeof excelDate})`);
+};
+
+// Utility function to format date as dd-mm-yyyy string
+const formatDateToDDMMYYYY = (date) => {
+  if (!date || !(date instanceof Date)) return null;
+  
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // JavaScript months are 0-indexed
+  const year = date.getFullYear();
+  
+  return `${day}-${month}-${year}`;
+};
+
 const processBulkUpload = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    // Read Excel file
-    const workbook = XLSX.read(req.file.buffer);
+    // Read Excel file with specific options to handle dates
+    const workbook = XLSX.read(req.file.buffer, {
+      cellDates: true, // Parse dates as Date objects when possible
+      dateNF: 'dd-mm-yyyy' // Default date format
+    });
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    const employees = XLSX.utils.sheet_to_json(worksheet);
+    
+    // Convert to JSON with raw: false to format cells
+    const employees = XLSX.utils.sheet_to_json(worksheet, {
+      raw: false, // Format dates and numbers
+      dateNF: 'dd-mm-yyyy' // Specify date format for output
+    });
+
+    console.log('Sample employee data:', employees[0]); // Debug log
 
     // Validate and process each employee
     const results = [];
@@ -113,9 +180,25 @@ const processBulkUpload = async (req, res) => {
           throw new Error('Missing required fields for individual data');
         }
 
+        console.log(`Processing row ${index + 2}:`);
+        console.log(`Original joining_date: ${emp.joining_date} (type: ${typeof emp.joining_date})`);
+        console.log(`Original hire_date: ${emp.hire_date} (type: ${typeof emp.hire_date})`);
+
         // Validate required fields for job details
         if (!emp.job_profile || !emp.job_family || !emp.management_level || !emp.location) {
           throw new Error('Missing required fields for job details');
+        }
+
+        // Convert Excel dates to JavaScript dates
+        const joiningDate = excelDateToJSDate(emp.joining_date);
+        const hireDate = excelDateToJSDate(emp.hire_date);
+
+        console.log(`Converted joining_date: ${joiningDate}`);
+        console.log(`Converted hire_date: ${hireDate}`);
+
+        // Validate converted dates
+        if (!joiningDate || !hireDate || isNaN(joiningDate.getTime()) || isNaN(hireDate.getTime())) {
+          throw new Error(`Invalid date format - joining: ${emp.joining_date}, hire: ${emp.hire_date}`);
         }
 
         let managerId;
@@ -136,15 +219,6 @@ const processBulkUpload = async (req, res) => {
           throw new Error(`Role '${emp.role_name}' not found`);
         }
 
-        // Process dates properly
-        const joiningDate = new Date(emp.joining_date);
-        const hireDate = new Date(emp.hire_date);
-
-        // Validate dates
-        if (isNaN(joiningDate.getTime()) || isNaN(hireDate.getTime())) {
-          throw new Error('Invalid date format');
-        }
-
         // Prepare individual data
         const individualData = {
           employee_id: emp.employee_id,
@@ -162,12 +236,13 @@ const processBulkUpload = async (req, res) => {
           status: emp.status || 'Active'
         };
 
+        console.log("Processed individual data:", individualData);
+
         // Create individual record
         const individualId = await IndividualData.create(individualData);
 
-        // Create password using the original joining_date value from Excel
-        // Format the date as YYYY-MM-DD for consistency
-        const joiningDateStr = joiningDate.toISOString().split('T')[0];
+        // Create password using the joining date in yyyy-mm-dd format for consistency
+        const joiningDateStr = joiningDate.toISOString().split('T')[0]; // yyyy-mm-dd format
         const password = `${emp.employee_id}@${joiningDateStr}`;
 
         // Debug log to check password
@@ -178,13 +253,11 @@ const processBulkUpload = async (req, res) => {
           throw new Error(`Invalid password generated: ${password}`);
         }
 
-        const hashedPassword = await bcrypt.hash(password, 12);
-
         // Create user account
         const userId = await User.create({
           employee_id: emp.employee_id,
           email: emp.email,
-          password: hashedPassword,
+          password: password,
           role_id: roleId,
           individual_data_id: individualId
         });
@@ -205,6 +278,8 @@ const processBulkUpload = async (req, res) => {
           work_address: emp.work_address || null,
           skills: emp.skills || null // Keep skills as string initially
         };
+
+        console.log("Processed job details data:", jobDetailsData);
 
         // Validate job details data
         const { error, value } = jobDetailsSchema.validate(jobDetailsData);
@@ -242,7 +317,11 @@ const processBulkUpload = async (req, res) => {
           userId,
           individualId,
           jobDetailsId,
-          generatedPassword: password // Include generated password in response for reference
+          generatedPassword: password, // Include generated password in response for reference
+          processedDates: {
+            joining_date: formatDateToDDMMYYYY(joiningDate),
+            hire_date: formatDateToDDMMYYYY(hireDate)
+          }
         });
 
       } catch (error) {
@@ -343,5 +422,7 @@ const createJobDetails = async (req, res) => {
 
 module.exports = {
   processBulkUpload,
-  createJobDetails
+  createJobDetails,
+  excelDateToJSDate, // Export utility function
+  formatDateToDDMMYYYY // Export formatting function
 };

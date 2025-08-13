@@ -17,7 +17,7 @@ class IndividualData {
       manager_id,
       status = 'Active'
     } = individualData;
-    
+
     const [result] = await db.execute(
       `INSERT INTO individual_data (
         employee_id, employee_name, employee_type, email, time_type, default_weekly_hours, 
@@ -32,7 +32,7 @@ class IndividualData {
         manager_id, status
       ]
     );
-    
+
     return result.insertId;
   }
 
@@ -62,16 +62,41 @@ class IndividualData {
     return rows[0];
   }
 
-  static async findAll() {
-    const [rows] = await db.execute(
-      `SELECT i.*, d.name as department_name, 
-              m.employee_id as manager_employee_id
-       FROM individual_data i 
-       LEFT JOIN departments d ON i.department_id = d.id 
-       LEFT JOIN individual_data m ON i.manager_id = m.id
-       ORDER BY i.employee_id`
-    );
-    return rows;
+  static async findAll({ page = 1, limit = 10, status = null } = {}) {
+    // Ensure numeric values and set defaults
+    const pageNum = Number.isInteger(page) ? page : 1;
+    const limitNum = Number.isInteger(limit) ? Math.min(limit, 100) : 10;
+    const offset = (pageNum - 1) * limitNum;
+
+    // Base query
+    let query = `
+    SELECT i.*, d.name as department_name, 
+           m.employee_id as manager_employee_id
+    FROM individual_data i 
+    LEFT JOIN departments d ON i.department_id = d.id 
+    LEFT JOIN individual_data m ON i.manager_id = m.id
+  `;
+
+    // Add WHERE clause if status filter is provided
+    const params = [];
+    if (status) {
+      query += ' WHERE i.status = ?';
+      params.push(status);
+    }
+
+    // Add ORDER BY and LIMIT/OFFSET for pagination
+    query += ' ORDER BY i.employee_id LIMIT ? OFFSET ?';
+
+    // MySQL requires numbers for LIMIT/OFFSET - convert explicitly
+    params.push(limitNum.toString(), offset.toString());
+
+    try {
+      const [rows] = await db.execute(query, params);
+      return rows;
+    } catch (error) {
+      console.error('Database query error:', error);
+      throw error;
+    }
   }
 
   static async findByDepartment(department_id) {
@@ -103,33 +128,33 @@ class IndividualData {
   static async update(id, updateData) {
     const fields = [];
     const values = [];
-    
+
     const allowedFields = [
-      'employee_type', 'employee_name', 'time_type', 'default_weekly_hours', 
+      'employee_type', 'employee_name', 'time_type', 'default_weekly_hours',
       'scheduled_weekly_hours', 'joining_date', 'hire_date',
-      'job_profile_progression_model_designation', 'department_id', 
+      'job_profile_progression_model_designation', 'department_id',
       'manager_id', 'status'
     ];
-    
+
     for (const [key, value] of Object.entries(updateData)) {
       if (allowedFields.includes(key) && value !== undefined) {
         fields.push(`${key} = ?`);
         values.push(value);
       }
     }
-    
+
     if (fields.length === 0) {
       throw new Error('No valid fields to update');
     }
-    
+
     values.push(id);
-    
+
     const [result] = await db.execute(
       `UPDATE individual_data SET ${fields.join(', ')}, 
        updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       values
     );
-    
+
     return result.affectedRows > 0;
   }
 
@@ -169,7 +194,7 @@ class IndividualData {
       )
       SELECT * FROM employee_hierarchy ORDER BY level, employee_id
     `, [employee_id]);
-    
+
     return rows;
   }
 
