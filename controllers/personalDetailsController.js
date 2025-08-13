@@ -10,7 +10,7 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 const createPersonalDetails = async (req, res) => {
   try {
     const { individual_data_id } = req.user;
-    
+
     // Validate required field
     if (!individual_data_id) {
       return res.status(400).json({
@@ -68,13 +68,13 @@ const getPersonalDetailsByIndividualId = async (req, res) => {
     }
 
     const result = await PersonalDetails.getByIndividualId(individual_data_id);
-    
+
     if (!result.success) {
       return res.status(404).json(result);
     }
     // console.log(`${BASE_URL}/${result.data.profile_pic}`)
     result.data.profile_pic = `${BASE_URL}/${result.data.profile_pic}`;
-    
+
     res.status(200).json(result);
 
   } catch (error) {
@@ -99,12 +99,12 @@ const getDetailedPersonalDetails = async (req, res) => {
     }
 
     const result = await PersonalDetails.getDetailedByIndividualId(individual_data_id);
-    
+
     if (!result.success) {
       return res.status(404).json(result);
     }
     result.profile_pic = `${BASE_URL}/${result.profile_pic}`;
-    
+
     res.status(200).json(result);
 
   } catch (error) {
@@ -129,12 +129,12 @@ const getPersonalDetailsById = async (req, res) => {
     }
 
     const result = await PersonalDetails.getById(id);
-    
+
     if (!result.success) {
       return res.status(404).json(result);
     }
     result.profile_pic = `${BASE_URL}/${result.profile_pic}`;
-    
+
     res.status(200).json(result);
 
   } catch (error) {
@@ -195,7 +195,7 @@ const updatePersonalDetailsByIndividualId = async (req, res) => {
     }
 
     const result = await PersonalDetails.updateByIndividualId(individual_data_id, updateData);
-    
+
     if (!result.success) {
       return res.status(404).json(result);
     }
@@ -216,6 +216,7 @@ const updatePersonalDetailsById = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
+    console.log(updateData)
 
     if (!id) {
       return res.status(400).json({
@@ -225,12 +226,20 @@ const updatePersonalDetailsById = async (req, res) => {
     }
 
     // Handle uploaded file
-    let uploadedFile = null;
     if (req.file) {
-      uploadedFile = path.relative(path.join(__dirname, '../'), req.file.path).replace(/\\/g, '/');
+      let uploadedFile = path
+        .relative(path.join(__dirname, '../'), req.file.path)
+        .replace(/\\/g, '/'); // ensure forward slashes
+
+      // Ensure only uploads/... path (without leading slash)
+      const match = uploadedFile.match(/(?:^|\/)uploads\/.*/);
+      if (match) {
+        uploadedFile = match[0].replace(/^\//, ''); // Remove leading slash if present
+      }
       updateData.profile_pic = uploadedFile;
     }
 
+    // Check if any update data is provided
     if (!updateData || Object.keys(updateData).length === 0) {
       return res.status(400).json({
         success: false,
@@ -238,8 +247,27 @@ const updatePersonalDetailsById = async (req, res) => {
       });
     }
 
+    // Format date_of_birth for MySQL DATE column
+    if (updateData.date_of_birth) {
+      const dob = new Date(updateData.date_of_birth);
+      updateData.date_of_birth = dob.toISOString().split('T')[0]; // "YYYY-MM-DD"
+    }
+
+    // Clean profile_pic if sent via body (string)
+    if (updateData.profile_pic && typeof updateData.profile_pic === 'string') {
+      // Extract only uploads/... part (without leading slash)
+      const match = updateData.profile_pic.match(/(?:^|\/)uploads\/.*/);
+      if (match) {
+        updateData.profile_pic = match[0].replace(/^\//, ''); // Remove leading slash if present
+      } else {
+        // If no uploads/ found, set to null or empty string as needed
+        updateData.profile_pic = null;
+      }
+    }
+
+    // Update in DB
     const result = await PersonalDetails.updateById(id, updateData);
-    
+
     if (!result.success) {
       return res.status(404).json(result);
     }
@@ -268,7 +296,7 @@ const deletePersonalDetailsByIndividualId = async (req, res) => {
     }
 
     const result = await PersonalDetails.deleteByIndividualId(individual_data_id);
-    
+
     if (!result.success) {
       return res.status(404).json(result);
     }
@@ -297,7 +325,7 @@ const deletePersonalDetailsById = async (req, res) => {
     }
 
     const result = await PersonalDetails.deleteById(id);
-    
+
     if (!result.success) {
       return res.status(404).json(result);
     }
@@ -361,7 +389,7 @@ const checkPersonalDetailsExist = async (req, res) => {
     }
 
     const exists = await PersonalDetails.existsForIndividual(individual_data_id);
-    
+
     res.status(200).json({
       success: true,
       exists,
